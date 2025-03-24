@@ -8,7 +8,7 @@ interface AnalysisResultsProps {
   results: CodeAnalysisResult;
 }
 
-const CircularProgress: React.FC<{ percentage: number }> = ({ percentage }) => {
+const CircularProgress: React.FC<{ percentage: number, score: number }> = ({ percentage, score }) => {
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percentage / 100) * circumference;
@@ -39,7 +39,7 @@ const CircularProgress: React.FC<{ percentage: number }> = ({ percentage }) => {
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-4xl font-bold text-gray-900">{results.overallScore}</span>
+        <span className="text-4xl font-bold text-gray-900">{score}</span>
         <span className="text-xl text-gray-600">/100</span>
       </div>
     </div>
@@ -75,7 +75,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results }) => {
             <p className="text-sm text-gray-500">Based on 6 evaluation criteria</p>
           </div>
           
-          <CircularProgress percentage={results.overallScore} />
+          <CircularProgress percentage={results.overallScore} score={results.overallScore} />
         </CardContent>
         
         {/* Category Scores */}

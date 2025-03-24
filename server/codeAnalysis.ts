@@ -54,7 +54,7 @@ export async function analyzeCode(
   
   try {
     // Call Python script to analyze the code
-    const { stdout, stderr } = await execPromise(`python ${pythonFilePath} "${tempFilePath}" "${fileName}" "${fileType}"`);
+    const { stdout, stderr } = await execPromise(`python3 ${pythonFilePath} "${tempFilePath}" "${fileName}" "${fileType}"`);
     
     if (stderr) {
       console.error('Python script error:', stderr);
