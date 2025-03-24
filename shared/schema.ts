@@ -2,34 +2,11 @@ import { pgTable, text, serial, integer, boolean, jsonb } from "drizzle-orm/pg-c
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Original users table (keep this as required by project structure)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-});
-
-export const waitlistEntries = pgTable("waitlist_entries", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  role: text("role"),
-  interest: text("interest"),
-  createdAt: text("created_at").notNull().default("NOW()"),
-});
-
-export const codeAnalyses = pgTable("code_analyses", {
-  id: serial("id").primaryKey(),
-  fileName: text("file_name").notNull(),
-  fileType: text("file_type").notNull(),
-  namingScore: integer("naming_score").notNull(),
-  modularityScore: integer("modularity_score").notNull(),
-  documentationScore: integer("documentation_score").notNull(),
-  formattingScore: integer("formatting_score").notNull(),
-  reusabilityScore: integer("reusability_score").notNull(),
-  bestPracticesScore: integer("best_practices_score").notNull(),
-  totalScore: integer("total_score").notNull(),
-  recommendations: jsonb("recommendations").notNull(),
-  createdAt: text("created_at").notNull().default("NOW()"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -37,45 +14,58 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
 });
 
-export const insertWaitlistEntrySchema = createInsertSchema(waitlistEntries).pick({
-  name: true,
-  email: true,
-  role: true,
-  interest: true,
-});
-
-export const insertCodeAnalysisSchema = createInsertSchema(codeAnalyses).pick({
-  fileName: true,
-  fileType: true,
-  namingScore: true,
-  modularityScore: true,
-  documentationScore: true,
-  formattingScore: true,
-  reusabilityScore: true,
-  bestPracticesScore: true,
-  totalScore: true,
-  recommendations: true,
-});
-
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-export type InsertWaitlistEntry = z.infer<typeof insertWaitlistEntrySchema>;
-export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
+// Code analysis results table
+export const codeAnalyses = pgTable("code_analyses", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  codeContent: text("code_content").notNull(),
+  overallScore: integer("overall_score").notNull(),
+  namingScore: integer("naming_score").notNull(),
+  functionScore: integer("function_score").notNull(),
+  commentsScore: integer("comments_score").notNull(),
+  formattingScore: integer("formatting_score").notNull(),
+  reusabilityScore: integer("reusability_score").notNull(),
+  bestPracticesScore: integer("best_practices_score").notNull(),
+  recommendations: jsonb("recommendations").notNull().$type<string[]>(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertCodeAnalysisSchema = createInsertSchema(codeAnalyses).omit({
+  id: true,
+});
 
 export type InsertCodeAnalysis = z.infer<typeof insertCodeAnalysisSchema>;
 export type CodeAnalysis = typeof codeAnalyses.$inferSelect;
 
-export const validFileTypes = ['.js', '.jsx', '.py'];
+// Waitlist schema
+export const waitlist = pgTable("waitlist", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  company: text("company"),
+  role: text("role"),
+  newsletter: boolean("newsletter").default(false),
+  createdAt: text("created_at").notNull(),
+});
 
-export const roleOptions = [
-  { label: "Select your role", value: "" },
-  { label: "Software Developer", value: "developer" },
-  { label: "Frontend Developer", value: "frontend" },
-  { label: "Backend Developer", value: "backend" },
-  { label: "Full-Stack Developer", value: "fullstack" },
-  { label: "Software Engineer", value: "engineer" },
-  { label: "Tech Lead", value: "lead" },
-  { label: "Engineering Manager", value: "manager" },
-  { label: "Other", value: "other" }
-];
+export const insertWaitlistSchema = createInsertSchema(waitlist).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const waitlistFormSchema = insertWaitlistSchema.extend({
+  email: z.string().email("Please enter a valid email address"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  company: z.string().optional(),
+  role: z.string().optional(),
+  newsletter: z.boolean().default(false),
+});
+
+export type InsertWaitlist = z.infer<typeof insertWaitlistSchema>;
+export type Waitlist = typeof waitlist.$inferSelect;

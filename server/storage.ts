@@ -1,35 +1,49 @@
-import { users, type User, type InsertUser, waitlistEntries, type WaitlistEntry, type InsertWaitlistEntry, codeAnalyses, type CodeAnalysis, type InsertCodeAnalysis } from "@shared/schema";
+import { 
+  users, 
+  type User, 
+  type InsertUser, 
+  codeAnalyses,
+  type CodeAnalysis,
+  type InsertCodeAnalysis,
+  waitlist,
+  type Waitlist,
+  type InsertWaitlist
+} from "@shared/schema";
 
+// Modify the interface with any CRUD methods
+// you might need
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  createWaitlistEntry(entry: InsertWaitlistEntry): Promise<WaitlistEntry>;
-  getWaitlistEntries(): Promise<WaitlistEntry[]>;
-  
+  // Code Analysis methods
   createCodeAnalysis(analysis: InsertCodeAnalysis): Promise<CodeAnalysis>;
   getCodeAnalysis(id: number): Promise<CodeAnalysis | undefined>;
-  getRecentCodeAnalyses(limit: number): Promise<CodeAnalysis[]>;
+  
+  // Waitlist methods
+  addToWaitlist(entry: InsertWaitlist): Promise<Waitlist>;
+  getWaitlistByEmail(email: string): Promise<Waitlist | undefined>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
-  private waitlistEntries: Map<number, WaitlistEntry>;
   private codeAnalyses: Map<number, CodeAnalysis>;
-  private userCurrentId: number;
-  private waitlistCurrentId: number;
-  private analysisCurrentId: number;
+  private waitlistEntries: Map<number, Waitlist>;
+  userCurrentId: number;
+  analysisCurrentId: number;
+  waitlistCurrentId: number;
 
   constructor() {
     this.users = new Map();
-    this.waitlistEntries = new Map();
     this.codeAnalyses = new Map();
+    this.waitlistEntries = new Map();
     this.userCurrentId = 1;
-    this.waitlistCurrentId = 1;
     this.analysisCurrentId = 1;
+    this.waitlistCurrentId = 1;
   }
 
+  // User methods
   async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
   }
@@ -47,22 +61,10 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  async createWaitlistEntry(insertEntry: InsertWaitlistEntry): Promise<WaitlistEntry> {
-    const id = this.waitlistCurrentId++;
-    const createdAt = new Date().toISOString();
-    const entry: WaitlistEntry = { ...insertEntry, id, createdAt };
-    this.waitlistEntries.set(id, entry);
-    return entry;
-  }
-
-  async getWaitlistEntries(): Promise<WaitlistEntry[]> {
-    return Array.from(this.waitlistEntries.values());
-  }
-
+  // Code Analysis methods
   async createCodeAnalysis(insertAnalysis: InsertCodeAnalysis): Promise<CodeAnalysis> {
     const id = this.analysisCurrentId++;
-    const createdAt = new Date().toISOString();
-    const analysis: CodeAnalysis = { ...insertAnalysis, id, createdAt };
+    const analysis: CodeAnalysis = { ...insertAnalysis, id };
     this.codeAnalyses.set(id, analysis);
     return analysis;
   }
@@ -71,10 +73,18 @@ export class MemStorage implements IStorage {
     return this.codeAnalyses.get(id);
   }
 
-  async getRecentCodeAnalyses(limit: number): Promise<CodeAnalysis[]> {
-    return Array.from(this.codeAnalyses.values())
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, limit);
+  // Waitlist methods
+  async addToWaitlist(insertEntry: InsertWaitlist): Promise<Waitlist> {
+    const id = this.waitlistCurrentId++;
+    const entry: Waitlist = { ...insertEntry, id };
+    this.waitlistEntries.set(id, entry);
+    return entry;
+  }
+
+  async getWaitlistByEmail(email: string): Promise<Waitlist | undefined> {
+    return Array.from(this.waitlistEntries.values()).find(
+      (entry) => entry.email === email,
+    );
   }
 }
 

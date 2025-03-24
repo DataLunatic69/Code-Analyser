@@ -1,175 +1,127 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { waitlistFormSchema } from "@shared/schema";
+import { analyzeCode } from "./codeAnalysis";
+import { ZodError } from "zod";
+import { fromZodError } from "zod-validation-error";
 import { exec } from "child_process";
-import { spawn } from "child_process";
+import { promisify } from "util";
 import fs from "fs";
 import path from "path";
-import { validFileTypes, insertWaitlistEntrySchema } from "@shared/schema";
-import { z } from "zod";
-import multer from "multer";
-import { randomUUID } from "crypto";
+import { fileURLToPath } from "url";
 
-const ensurePythonBackendStarted = () => {
-  // Check if the Python backend is already running
-  const isRunning = fs.existsSync("./python_backend.pid");
-  
-  if (!isRunning) {
-    // Start the Python backend
-    const pythonProcess = spawn("python", ["server/analyzer.py"], {
-      detached: true,
-      stdio: "ignore",
-    });
-    
-    // Store the process ID
-    fs.writeFileSync("./python_backend.pid", pythonProcess.pid.toString());
-    
-    // Unref the child process to allow the node process to exit
-    pythonProcess.unref();
-    
-    console.log("Python backend started with PID:", pythonProcess.pid);
-  }
-};
+const execPromise = promisify(exec);
+
+// Helper to get current directory with ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up file storage for code uploads
-  const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadDir = path.join(__dirname, 'uploads');
-      
-      // Create the directory if it doesn't exist
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      
-      cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-      // Generate a unique filename
-      const uniqueFilename = `${randomUUID()}-${file.originalname}`;
-      cb(null, uniqueFilename);
-    }
-  });
-  
-  const upload = multer({
-    storage,
-    fileFilter: (req, file, cb) => {
-      const fileExt = path.extname(file.originalname).toLowerCase();
-      if (validFileTypes.includes(fileExt)) {
-        return cb(null, true);
-      }
-      cb(new Error(`Only ${validFileTypes.join(', ')} files are allowed`));
-    },
+  // Set up file upload middleware
+  const multer = await import("multer");
+  const upload = multer.default({
+    storage: multer.default.memoryStorage(),
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB
+      fileSize: 5 * 1024 * 1024, // 5MB limit
     },
-  });
-  
-  // Start the Python backend
-  ensurePythonBackendStarted();
-  
-  // Waitlist API endpoint
-  app.post('/api/waitlist', async (req, res) => {
-    try {
-      const validatedData = insertWaitlistEntrySchema.parse(req.body);
-      const entry = await storage.createWaitlistEntry(validatedData);
-      res.status(201).json({ success: true, data: entry });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ 
-          success: false, 
-          message: 'Validation error', 
-          errors: error.errors 
-        });
+    fileFilter: (req, file, cb) => {
+      // Accept only .js, .jsx, and .py files
+      const allowedExtensions = ['.js', '.jsx', '.py'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowedExtensions.includes(ext)) {
+        cb(null, true);
       } else {
-        console.error('Error creating waitlist entry:', error);
-        res.status(500).json({ 
-          success: false, 
-          message: 'Failed to join waitlist'
-        });
+        cb(new Error('Invalid file type. Only .js, .jsx, and .py files are allowed.'));
       }
     }
   });
-  
-  // Code analysis API endpoint
-  app.post('/api/analyze-code', upload.single('file'), async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'No file uploaded'
-      });
-    }
-    
+
+  // API routes
+  app.post('/api/analyze-code', upload.single('file'), async (req: Request, res: Response) => {
     try {
-      // File details
-      const filePath = req.file.path;
-      const fileName = req.file.originalname;
-      const fileType = path.extname(fileName);
-      
-      // Read file content
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-      
-      // Make request to Python backend
-      const analysisResult = await fetch('http://localhost:8000/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          file_content: fileContent,
-          file_name: fileName,
-          file_type: fileType
-        }),
-      });
-      
-      if (!analysisResult.ok) {
-        throw new Error(`Analysis failed with status: ${analysisResult.status}`);
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
       }
+
+      const file = req.file;
+      const fileContent = file.buffer.toString('utf-8');
+      const fileType = path.extname(file.originalname).substring(1);
       
-      const analysisData = await analysisResult.json();
+      // Analyze the code
+      const analysis = await analyzeCode(fileContent, file.originalname, fileType);
       
-      // Save analysis to storage
+      // Store analysis in database if needed
+      const timestamp = new Date().toISOString();
       const savedAnalysis = await storage.createCodeAnalysis({
-        fileName,
+        fileName: file.originalname,
         fileType,
-        namingScore: analysisData.category_scores.naming,
-        modularityScore: analysisData.category_scores.modularity,
-        documentationScore: analysisData.category_scores.documentation,
-        formattingScore: analysisData.category_scores.formatting,
-        reusabilityScore: analysisData.category_scores.reusability,
-        bestPracticesScore: analysisData.category_scores.best_practices,
-        totalScore: analysisData.total_score,
-        recommendations: analysisData.recommendations,
+        codeContent: fileContent,
+        overallScore: analysis.overallScore,
+        namingScore: analysis.categoryScores.namingConventions,
+        functionScore: analysis.categoryScores.functionLength,
+        commentsScore: analysis.categoryScores.commentsDocumentation,
+        formattingScore: analysis.categoryScores.formatting,
+        reusabilityScore: analysis.categoryScores.reusability,
+        bestPracticesScore: analysis.categoryScores.bestPractices,
+        recommendations: analysis.recommendations,
+        createdAt: timestamp
       });
-      
-      // Cleanup uploaded file
-      fs.unlinkSync(filePath);
-      
-      // Return the analysis results
-      res.status(200).json({
-        success: true,
-        data: savedAnalysis
-      });
+
+      return res.status(200).json(analysis);
     } catch (error) {
       console.error('Error analyzing code:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Failed to analyze code',
+      return res.status(500).json({ 
+        message: 'Error analyzing code', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
+  // Join waitlist route
+  app.post('/api/join-waitlist', async (req: Request, res: Response) => {
+    try {
+      const validatedData = waitlistFormSchema.parse(req.body);
+      
+      // Check if email already exists
+      const existingEntry = await storage.getWaitlistByEmail(validatedData.email);
+      if (existingEntry) {
+        return res.status(400).json({ message: 'This email is already on our waitlist' });
+      }
+      
+      // Add to waitlist
+      const timestamp = new Date().toISOString();
+      const waitlistEntry = await storage.addToWaitlist({
+        ...validatedData,
+        createdAt: timestamp
+      });
+      
+      return res.status(201).json({ message: 'Successfully joined the waitlist' });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      
+      console.error('Error joining waitlist:', error);
+      return res.status(500).json({ 
+        message: 'Error joining waitlist',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
-  
-  // Get recent analyses
-  app.get('/api/recent-analyses', async (req, res) => {
+
+  // Check if Python service is available
+  app.get('/api/health', async (req: Request, res: Response) => {
     try {
-      const analyses = await storage.getRecentCodeAnalyses(5);
-      res.status(200).json({ success: true, data: analyses });
+      // Check if Python is installed
+      await execPromise("python --version");
+      res.status(200).json({ status: 'ok', message: 'Service is healthy' });
     } catch (error) {
-      console.error('Error fetching recent analyses:', error);
       res.status(500).json({ 
-        success: false, 
-        message: 'Failed to fetch recent analyses'
+        status: 'error', 
+        message: 'Python is not available', 
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });

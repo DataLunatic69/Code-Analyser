@@ -1,52 +1,50 @@
-import { Link } from "wouter";
+import React from "react";
 import { Button } from "@/components/ui/button";
 
 interface NavbarProps {
-  onNavigate: (sectionId: string) => void;
-  activeSection: string | null;
+  onNavClick: (sectionId: string) => void;
 }
 
-export default function Navbar({ onNavigate, activeSection }: NavbarProps) {
-  const navItems = [
-    { label: "About", sectionId: "about" },
-    { label: "Features", sectionId: "features" },
-    { label: "Join Waitlist", sectionId: "waitlist" },
-  ];
-
+const Navbar: React.FC<NavbarProps> = ({ onNavClick }) => {
   return (
-    <nav className="bg-white shadow-sm sticky top-0 z-50">
+    <nav className="bg-white shadow sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex items-center">
+          <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/">
-                <span className="text-3xl font-bold text-primary cursor-pointer">
-                  Code<span className="text-purple-500">Quality</span>
-                </span>
-              </Link>
+              <span className="text-primary text-2xl font-bold">CodeAnalyzer</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            {navItems.map((item) => (
-              <button
-                key={item.sectionId}
-                onClick={() => onNavigate(item.sectionId)}
-                className={`text-gray-900 hover:text-primary px-3 py-2 text-sm font-medium
-                  ${activeSection === item.sectionId ? "text-primary" : ""}`}
-              >
-                {item.label}
-              </button>
-            ))}
-            <Button 
-              variant="default" 
-              onClick={() => onNavigate("upload")}
-              className="bg-primary text-white hover:bg-primary/90"
+            <button 
+              onClick={() => onNavClick("features")} 
+              className="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium"
             >
-              Try Now
+              Features
+            </button>
+            <button 
+              onClick={() => onNavClick("how-it-works")} 
+              className="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium"
+            >
+              How it Works
+            </button>
+            <button 
+              onClick={() => onNavClick("pricing")} 
+              className="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Pricing
+            </button>
+            <Button
+              onClick={() => onNavClick("waitlist")}
+              className="bg-primary hover:bg-primary/90 text-white"
+            >
+              Join Waitlist
             </Button>
           </div>
         </div>
       </div>
     </nav>
   );
-}
+};
+
+export default Navbar;
