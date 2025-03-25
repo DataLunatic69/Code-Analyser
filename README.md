@@ -2,7 +2,6 @@
 
 A lightweight, AI-powered code analysis tool that evaluates code quality for web development files (JavaScript/JSX/TypeScript and Python).
 
-![Code Quality Analyzer](generated-icon.png)
 
 ## Features
 
@@ -133,6 +132,11 @@ The action will:
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## results
+
+![Code Quality Analyzer](generated-icon.png)
+![Code Quality Analyzer](generated-icon.png)
 
 ## License
 
