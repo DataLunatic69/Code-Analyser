@@ -135,8 +135,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## results
 
-![Code Quality Analyzer](result1.png)
-![Code Quality Analyzer](result2.png)
+![Code Quality Analyzer](result3.png)
+![Code Quality Analyzer](result4.png)
 
 ## License
 
