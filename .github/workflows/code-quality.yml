@@ -1,0 +1,229 @@
+name: Code Quality Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Fetches all history for all branches and tags
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install langchain-core langchain-groq
+
+    - name: Install Node.js dependencies
+      run: npm ci
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v35
+      with:
+        files: |
+          **/*.js
+          **/*.jsx
+          **/*.ts
+          **/*.tsx
+          **/*.py
+    
+    - name: Analyze changed files
+      if: steps.changed-files.outputs.any_changed == 'true'
+      id: analyze
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      run: |
+        mkdir -p analysis_results
+        echo "# Code Quality Analysis Results" > analysis_results/summary.md
+        echo "" >> analysis_results/summary.md
+        echo "| File | Score | Naming | Modularity | Documentation | Formatting | Reusability | Best Practices |" >> analysis_results/summary.md
+        echo "| ---- | ----- | ------ | ---------- | ------------- | ---------- | ----------- | -------------- |" >> analysis_results/summary.md
+        
+        TOTAL_SCORE=0
+        FILES_ANALYZED=0
+        
+        for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+          if [[ $file == *.js || $file == *.jsx || $file == *.ts || $file == *.tsx || $file == *.py ]]; then
+            echo "Analyzing $file..."
+            
+            # Determine file type
+            if [[ $file == *.py ]]; then
+              FILE_TYPE="py"
+            elif [[ $file == *.jsx || $file == *.tsx ]]; then
+              FILE_TYPE="jsx"
+            elif [[ $file == *.ts ]]; then
+              FILE_TYPE="ts"
+            else
+              FILE_TYPE="js"
+            fi
+            
+            # Run analysis
+            RESULT=$(node -e "
+              const fs = require('fs');
+              const path = require('path');
+              const { execSync } = require('child_process');
+              
+              const content = fs.readFileSync('$file', 'utf8');
+              const fileName = path.basename('$file');
+              
+              const tempFile = \`temp_\${Date.now()}.$FILE_TYPE\`;
+              fs.writeFileSync(tempFile, content);
+              
+              try {
+                const output = execSync(
+                  \`python server/pythonService.py \${tempFile} \${fileName} $FILE_TYPE\`,
+                  { encoding: 'utf8' }
+                );
+                
+                // Extract JSON from output
+                const jsonStart = output.indexOf('{');
+                const jsonEnd = output.lastIndexOf('}') + 1;
+                if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                  const jsonStr = output.substring(jsonStart, jsonEnd);
+                  const result = JSON.parse(jsonStr);
+                  console.log(JSON.stringify(result));
+                } else {
+                  console.log(JSON.stringify({
+                    fileName,
+                    overallScore: 0,
+                    categoryScores: {
+                      namingConventions: 0,
+                      functionLength: 0,
+                      commentsDocumentation: 0,
+                      formatting: 0,
+                      reusability: 0,
+                      bestPractices: 0
+                    },
+                    recommendations: ['Error analyzing file']
+                  }));
+                }
+              } catch (error) {
+                console.log(JSON.stringify({
+                  fileName,
+                  overallScore: 0,
+                  categoryScores: {
+                    namingConventions: 0,
+                    functionLength: 0,
+                    commentsDocumentation: 0,
+                    formatting: 0,
+                    reusability: 0,
+                    bestPractices: 0
+                  },
+                  recommendations: ['Error analyzing file: ' + error.message]
+                }));
+              } finally {
+                try {
+                  fs.unlinkSync(tempFile);
+                } catch (e) {
+                  console.error('Could not delete temp file:', e);
+                }
+              }
+            ")
+            
+            # Save detailed results
+            echo "$RESULT" > "analysis_results/$(basename $file).json"
+            
+            # Extract scores for summary
+            SCORE=$(echo $RESULT | jq -r .overallScore)
+            NAMING=$(echo $RESULT | jq -r .categoryScores.namingConventions)
+            MODULARITY=$(echo $RESULT | jq -r .categoryScores.functionLength)
+            DOCS=$(echo $RESULT | jq -r .categoryScores.commentsDocumentation)
+            FORMAT=$(echo $RESULT | jq -r .categoryScores.formatting)
+            REUSE=$(echo $RESULT | jq -r .categoryScores.reusability)
+            PRACTICES=$(echo $RESULT | jq -r .categoryScores.bestPractices)
+            
+            echo "| $file | $SCORE | $NAMING | $MODULARITY | $DOCS | $FORMAT | $REUSE | $PRACTICES |" >> analysis_results/summary.md
+            
+            # Create detailed markdown
+            echo "# Analysis for $(basename $file)" > "analysis_results/$(basename $file).md"
+            echo "" >> "analysis_results/$(basename $file).md"
+            echo "## Overall Score: $SCORE / 100" >> "analysis_results/$(basename $file).md"
+            echo "" >> "analysis_results/$(basename $file).md"
+            echo "## Category Scores" >> "analysis_results/$(basename $file).md"
+            echo "- Naming Conventions: $NAMING / 10" >> "analysis_results/$(basename $file).md"
+            echo "- Function Length & Modularity: $MODULARITY / 20" >> "analysis_results/$(basename $file).md"
+            echo "- Comments & Documentation: $DOCS / 20" >> "analysis_results/$(basename $file).md"
+            echo "- Code Formatting: $FORMAT / 15" >> "analysis_results/$(basename $file).md"
+            echo "- Reusability: $REUSE / 15" >> "analysis_results/$(basename $file).md"
+            echo "- Best Practices: $PRACTICES / 20" >> "analysis_results/$(basename $file).md"
+            echo "" >> "analysis_results/$(basename $file).md"
+            echo "## Recommendations" >> "analysis_results/$(basename $file).md"
+            
+            RECOMMENDATIONS=$(echo $RESULT | jq -r '.recommendations[]')
+            while IFS= read -r line; do
+              echo "- $line" >> "analysis_results/$(basename $file).md"
+            done <<< "$RECOMMENDATIONS"
+            
+            # Add to total score
+            TOTAL_SCORE=$((TOTAL_SCORE + SCORE))
+            FILES_ANALYZED=$((FILES_ANALYZED + 1))
+          fi
+        done
+        
+        if [ $FILES_ANALYZED -gt 0 ]; then
+          AVG_SCORE=$((TOTAL_SCORE / FILES_ANALYZED))
+          echo "" >> analysis_results/summary.md
+          echo "## Summary" >> analysis_results/summary.md
+          echo "" >> analysis_results/summary.md
+          echo "- Files analyzed: $FILES_ANALYZED" >> analysis_results/summary.md
+          echo "- Average score: $AVG_SCORE / 100" >> analysis_results/summary.md
+          
+          echo "average_score=$AVG_SCORE" >> $GITHUB_OUTPUT
+          echo "files_analyzed=$FILES_ANALYZED" >> $GITHUB_OUTPUT
+        else
+          echo "No files to analyze"
+          echo "average_score=0" >> $GITHUB_OUTPUT
+          echo "files_analyzed=0" >> $GITHUB_OUTPUT
+        fi
+     
+    - name: Comment on PR
+      if: github.event_name == 'pull_request' && steps.changed-files.outputs.any_changed == 'true'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const summaryContent = fs.readFileSync('analysis_results/summary.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summaryContent
+          });
+    
+    - name: Check minimum score threshold
+      if: steps.changed-files.outputs.any_changed == 'true'
+      run: |
+        AVG_SCORE=${{ steps.analyze.outputs.average_score }}
+        MIN_SCORE=60  # Configure minimum acceptable score
+        
+        if [ $AVG_SCORE -lt $MIN_SCORE ]; then
+          echo "Average code quality score ($AVG_SCORE) is below the minimum threshold ($MIN_SCORE)"
+          exit 1
+        else
+          echo "Code quality check passed with average score: $AVG_SCORE"
+        fi
+    
+    - name: Upload analysis results
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-quality-analysis
+        path: analysis_results/
