@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { Card, CardContent } from "@/components/ui/card";
 import { CodeAnalysisResult } from "@/types";
 import AnalysisResults from "@/components/analysis-results";
 
@@ -12,7 +12,6 @@ interface CodeUploadProps {
 
 const CodeUpload: React.FC<CodeUploadProps> = ({ onAnalysisComplete, results }) => {
   const [file, setFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -46,24 +45,6 @@ const CodeUpload: React.FC<CodeUploadProps> = ({ onAnalysisComplete, results }) 
     }
     
     setFile(selectedFile);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      validateAndSetFile(e.dataTransfer.files[0]);
-    }
   };
 
   const handleRemoveFile = () => {
@@ -112,93 +93,68 @@ const CodeUpload: React.FC<CodeUploadProps> = ({ onAnalysisComplete, results }) 
   };
 
   return (
-    <div id="code-analyzer" className="py-12 bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="lg:text-center mb-10">
-          <h2 className="text-base text-primary font-semibold tracking-wide uppercase">Try It Now</h2>
-          <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-            Analyze Your Code
-          </p>
-          <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-            Upload your JavaScript, JSX, or Python file to get instant feedback and recommendations.
-          </p>
-        </div>
-
-        <div className="max-w-3xl mx-auto">
-          <div 
-            className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center bg-white
-              ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-300'}
-              ${file ? 'border-primary/50' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <div className="flex flex-col items-center text-center">
-              <i className="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
-              <h3 className="text-lg font-medium text-gray-900">Upload your code file</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Drag and drop your file here, or click to browse
-              </p>
-              <p className="text-xs text-gray-400 mt-2">
-                Accepts .js, .jsx, and .py files up to 5MB
-              </p>
-            </div>
-            
-            <input 
-              type="file" 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".js,.jsx,.py" 
-            />
-            
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-4"
-              variant="default"
-            >
-              Browse Files
-            </Button>
-            
-            {file && (
-              <div className="mt-4">
-                <div className="flex items-center space-x-2">
-                  <i className="fas fa-file-code text-primary"></i>
-                  <span className="text-sm font-medium">{file.name}</span>
-                  <button 
-                    className="text-red-500 hover:text-red-700"
-                    onClick={handleRemoveFile}
+    <div>
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <div className="flex flex-col items-center">
+            <div className="w-full">
+              <div className="flex flex-col items-center mb-4">
+                <h3 className="text-lg font-medium mb-2">Select a code file to analyze</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Supported file types: .js, .jsx, .py (Max 5MB)
+                </p>
+                
+                <div className="flex items-center gap-4">
+                  <input 
+                    type="file" 
+                    id="file-upload"
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".js,.jsx,.py" 
+                  />
+                  
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4"
                   >
-                    <i className="fas fa-times"></i>
-                  </button>
+                    Select File
+                  </Button>
+                  
+                  <Button
+                    onClick={handleAnalyzeCode}
+                    disabled={!file || isLoading}
+                    className="px-4"
+                    variant="default"
+                  >
+                    {isLoading ? "Analyzing..." : "Analyze Code"}
+                  </Button>
                 </div>
               </div>
-            )}
-          </div>
-          
-          <div className="mt-4 flex justify-center">
-            <Button
-              onClick={handleAnalyzeCode}
-              disabled={!file || isLoading}
-              className="px-6 py-3 flex items-center justify-center"
-            >
-              {isLoading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-code-branch mr-2"></i>
-                  Analyze Code
-                </>
+              
+              {file && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium">Selected file: {file.name}</span>
+                    </div>
+                    <Button 
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveFile}
+                      className="text-red-500 h-auto p-1"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
               )}
-            </Button>
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {results && <AnalysisResults results={results} />}
-      </div>
+      {results && <AnalysisResults results={results} />}
     </div>
   );
 };
