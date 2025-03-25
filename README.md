@@ -135,8 +135,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## results
 
-![Code Quality Analyzer](Screenshot 2025-03-25 104508.png)
-![Code Quality Analyzer](Screenshot 2025-03-25 104531.png)
+![Code Quality Analyzer](result1.png)
+![Code Quality Analyzer](result2.png)
 
 ## License
 
