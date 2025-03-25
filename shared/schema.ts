@@ -24,8 +24,9 @@ export const codeAnalyses = pgTable("code_analyses", {
   fileType: text("file_type").notNull(),
   codeContent: text("code_content").notNull(),
   overallScore: integer("overall_score").notNull(),
+  // Category breakdown scores
   namingScore: integer("naming_score").notNull(),
-  functionScore: integer("function_score").notNull(),
+  modularityScore: integer("modularity_score").notNull(),
   commentsScore: integer("comments_score").notNull(),
   formattingScore: integer("formatting_score").notNull(),
   reusabilityScore: integer("reusability_score").notNull(),
@@ -37,6 +38,27 @@ export const codeAnalyses = pgTable("code_analyses", {
 export const insertCodeAnalysisSchema = createInsertSchema(codeAnalyses).omit({
   id: true,
 });
+
+// Type for breakdown scores to match the frontend expectations
+export const breakdownSchema = z.object({
+  naming: z.number(),
+  modularity: z.number(),
+  comments: z.number(),
+  formatting: z.number(),
+  reusability: z.number(),
+  best_practices: z.number()
+});
+
+export type BreakdownScores = z.infer<typeof breakdownSchema>;
+
+// Define a frontend-friendly analysis result type
+export const analysisResultSchema = z.object({
+  overall_score: z.number(),
+  breakdown: breakdownSchema,
+  recommendations: z.array(z.string())
+});
+
+export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 
 export type InsertCodeAnalysis = z.infer<typeof insertCodeAnalysisSchema>;
 export type CodeAnalysis = typeof codeAnalyses.$inferSelect;
