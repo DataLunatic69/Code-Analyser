@@ -64,9 +64,25 @@ export async function analyzeCode(
       console.error('Python script error:', stderr);
     }
     
-    // Parse the results
-    const results = JSON.parse(stdout) as CodeAnalysisResult;
-    return results;
+    // Make sure we're parsing only the JSON part of the output
+    try {
+      // Find the first { and last } to extract only the JSON part
+      const jsonStart = stdout.indexOf('{');
+      const jsonEnd = stdout.lastIndexOf('}') + 1;
+      
+      if (jsonStart >= 0 && jsonEnd > jsonStart) {
+        const jsonStr = stdout.substring(jsonStart, jsonEnd);
+        const results = JSON.parse(jsonStr) as CodeAnalysisResult;
+        return results;
+      } else {
+        console.error('No valid JSON found in the Python output:', stdout);
+        throw new Error('Invalid output format from analysis service');
+      }
+    } catch (parseError) {
+      console.error('Error parsing JSON from Python output:', parseError);
+      console.error('Raw output:', stdout);
+      throw new Error('Invalid JSON format in analysis results');
+    }
   } catch (error) {
     console.error('Error executing Python script:', error);
     

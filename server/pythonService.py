@@ -51,7 +51,7 @@ def analyze_code(code: str, file_type: str) -> CodeAnalysisResult:
         # Initialize Groq model
         model = ChatGroq(
             groq_api_key=os.environ.get("GROQ_API_KEY"),
-            model_name="llama-3.1-70b-versatile"
+            model_name="llama3-70b-8192"
         )
 
         # System prompt for code analysis
@@ -109,7 +109,7 @@ IMPORTANT:
             
             # Prepare the result
             result_dict: CodeAnalysisResult = {
-                "fileName": file_name,
+                "fileName": os.path.basename(file_path) if 'file_path' in globals() else "uploaded_file",
                 "fileType": file_type,
                 "codeContent": code,
                 "overallScore": analysis["overall_score"],
@@ -163,7 +163,7 @@ def perform_basic_analysis(code: str, file_type: str) -> CodeAnalysisResult:
     
     # Prepare the result
     result: CodeAnalysisResult = {
-        "fileName": file_name,
+        "fileName": os.path.basename(file_path) if 'file_path' in globals() else "uploaded_file",
         "fileType": file_type,
         "codeContent": code,
         "overallScore": total_score,
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     if not code_content:
         # If we couldn't read the file, return an error
         result = {
-            "fileName": file_name,
+            "fileName": os.path.basename(file_path) if 'file_path' in globals() else "uploaded_file",
             "fileType": file_type,
             "codeContent": "",
             "overallScore": 0,
