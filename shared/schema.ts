@@ -24,9 +24,9 @@ export const codeAnalyses = pgTable("code_analyses", {
   fileType: text("file_type").notNull(),
   codeContent: text("code_content").notNull(),
   overallScore: integer("overall_score").notNull(),
-  // Category breakdown scores
+  // Category breakdown scores - use names that match our frontend
   namingScore: integer("naming_score").notNull(),
-  modularityScore: integer("modularity_score").notNull(),
+  functionScore: integer("function_score").notNull(),
   commentsScore: integer("comments_score").notNull(),
   formattingScore: integer("formatting_score").notNull(),
   reusabilityScore: integer("reusability_score").notNull(),
@@ -39,22 +39,25 @@ export const insertCodeAnalysisSchema = createInsertSchema(codeAnalyses).omit({
   id: true,
 });
 
-// Type for breakdown scores to match the frontend expectations
-export const breakdownSchema = z.object({
-  naming: z.number(),
-  modularity: z.number(),
-  comments: z.number(),
+// Define a category scores schema that matches our frontend
+export const categoryScoresSchema = z.object({
+  namingConventions: z.number(),
+  functionLength: z.number(),
+  commentsDocumentation: z.number(),
   formatting: z.number(),
   reusability: z.number(),
-  best_practices: z.number()
+  bestPractices: z.number()
 });
 
-export type BreakdownScores = z.infer<typeof breakdownSchema>;
+export type CategoryScores = z.infer<typeof categoryScoresSchema>;
 
 // Define a frontend-friendly analysis result type
 export const analysisResultSchema = z.object({
-  overall_score: z.number(),
-  breakdown: breakdownSchema,
+  fileName: z.string(),
+  fileType: z.string(),
+  codeContent: z.string(),
+  overallScore: z.number(),
+  categoryScores: categoryScoresSchema,
   recommendations: z.array(z.string())
 });
 

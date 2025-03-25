@@ -4,7 +4,6 @@ import { promisify } from "util";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createWriteStream } from "fs";
 
 const execPromise = promisify(exec);
 
@@ -53,12 +52,16 @@ export async function analyzeCode(
   const tempFilePath = await writeCodeToTempFile(codeContent, fileType);
   
   try {
+    // Check if GROQ_API_KEY is available
+    if (!process.env.GROQ_API_KEY) {
+      console.warn('No GROQ_API_KEY found in environment variables');
+    }
+    
     // Call Python script to analyze the code
     const { stdout, stderr } = await execPromise(`python3 ${pythonFilePath} "${tempFilePath}" "${fileName}" "${fileType}"`);
     
-    if (stderr) {
+    if (stderr && !stderr.includes("Downloading model weights")) {
       console.error('Python script error:', stderr);
-      throw new Error('Error analyzing code in Python service');
     }
     
     // Parse the results
@@ -67,25 +70,8 @@ export async function analyzeCode(
   } catch (error) {
     console.error('Error executing Python script:', error);
     
-    // If we encounter an error, return a mock analysis result for now
-    // In production, we'd handle this more gracefully
-    return {
-      fileName,
-      fileType,
-      codeContent,
-      overallScore: 0,
-      categoryScores: {
-        namingConventions: 0,
-        functionLength: 0,
-        commentsDocumentation: 0,
-        formatting: 0,
-        reusability: 0,
-        bestPractices: 0
-      },
-      recommendations: [
-        "Error analyzing code. Please try again with a different file."
-      ]
-    };
+    // Return a proper error response
+    throw new Error('Error analyzing code: ' + (error instanceof Error ? error.message : String(error)));
   } finally {
     // Clean up temp file
     await cleanupTempFile(tempFilePath);
